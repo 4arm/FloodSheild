@@ -1,67 +1,227 @@
-# Flood Shield: IoT Flood Monitoring & AI Security System
+🌊 FloodShield – IoT Flood Monitoring System
 
-Flood Shield is an integrated Edge-to-Cloud IoT solution designed for real-time flood monitoring and site security. The system utilizes a Raspberry Pi to collect sensor data and perform on-device Human Detection using Computer Vision, syncing all data to a Google Cloud Platform (GCP) VM for visualization.
+FloodShield is a full-stack IoT-based flood monitoring and alert system that integrates ESP32 sensors, MQTT messaging, a Google Cloud Platform (GCP) VM, MariaDB, a web dashboard, and a Raspberry Pi camera module for visual monitoring.
 
----
+This project is designed for real-time environmental sensing, cloud-based data storage, and web-based visualization, making it ideal for flood detection, monitoring, and research applications.
 
-## 🚀 System Architecture
+🧩 System Architecture Overview
+ESP32 Sensors
+   ↓ (MQTT)
+Mosquitto Broker (GCP VM)
+   ↓
+Python MQTT Bridge
+   ↓
+MariaDB Database
+   ↓
+Apache + PHP Dashboard
 
-The project follows a three-tier architecture:
 
-1.  **Edge Layer (Raspberry Pi):** Collects ultrasonic/water sensor data and captures images. Runs a **HOG (Histogram of Oriented Gradients)** model to detect human presence locally.
-2.  **Transmission Layer:** Data is pushed via **HTTP POST** requests to a cloud-hosted API.
-3.  **Cloud Layer (GCP VM):** A LAMP stack server that stores sensor history in **MariaDB** and serves a real-time **Web Dashboard** with live trend charts and camera feeds.
+📷 Raspberry Pi Camera uploads images to the server for visual flood confirmation.
+
+🛠️ Hardware Components
+
+ESP32 (NodeMCU-32S)
+
+DHT11 Temperature & Humidity Sensor
+
+Water Level Sensor (Analog)
+
+Ultrasonic Distance Sensor
+
+Servo Motor
+
+Raspberry Pi with Camera Module
+
+📦 Arduino Setup (ESP32)
+1️⃣ Required Libraries
+
+Install via Arduino IDE → Sketch > Include Library > Manage Libraries...
+
+Library Name	Author	Purpose
+PubSubClient	Nick O'Leary	MQTT communication with GCP VM
+DHT sensor library	Adafruit	Reads DHT11 temperature & humidity
+Adafruit Unified Sensor	Adafruit	Dependency for DHT
+ESP32Servo	Kevin Harrington	Servo PWM control for ESP32
+2️⃣ ESP32 Code
+
+MQTT topic: flood/sensor
+
+Database key fixed: water_analog
+
+📄 ESP32 Sketch:
+👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/Arduino/esp32.ino
+
+3️⃣ Critical Arduino Configuration
+
+Board: NodeMCU-32S
+
+Upload Speed: 115200
+
+GCP VM External IP: 34.124.166.142 (verify if VM restarted)
+
+MQTT Topic: flood/sensor
+
+☁️ GCP VM Setup
+Required Services
+
+MariaDB
+
+Mosquitto MQTT Broker
+
+Apache2 + PHP
+
+🗄️ MariaDB Database Setup
+Create User
+CREATE USER 'flood_user'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON flood_system.* TO 'flood_user'@'localhost';
+FLUSH PRIVILEGES;
+
+Create Database & Table
+CREATE DATABASE IF NOT EXISTS flood_system;
+USE flood_system;
+
+CREATE TABLE sensor_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  temp FLOAT,
+  hum FLOAT,
+  water_analog INT,
+  distance_cm INT,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+📡 Mosquitto MQTT Broker Configuration
+Install
+sudo apt update && sudo apt upgrade -y
+sudo apt install mosquitto mosquitto-clients -y
+sudo systemctl enable mosquitto
+
+Configuration
+sudo nano /etc/mosquitto/conf.d/default.conf
+
+listener 1883 0.0.0.0
+allow_anonymous true
+
+sudo systemctl restart mosquitto
+
+Firewall Rule (GCP)
+
+Port: 1883
+
+Protocol: TCP
+
+Source: 0.0.0.0/0
+
+MQTT Test
+mosquitto_sub -h localhost -t "flood/sensor"
+mosquitto_pub -h localhost -t "flood/sensor" -m "Flood data test"
+
+🐍 Python MQTT → MariaDB Bridge
+Setup Virtual Environment
+sudo apt install python3-venv -y
+mkdir ~/flood_bridge && cd ~/flood_bridge
+python3 -m venv venv
+source venv/bin/activate
+pip install paho-mqtt mysql-connector-python
 
 
+📄 Bridge Script:
+👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/mqtt_bridge.py
 
----
+python3 mqtt_bridge.py
+deactivate
 
-## ✨ Features
+🌐 Web Dashboard (Apache + PHP)
+Install Apache & PHP
+sudo apt install apache2 php libapache2-mod-php php-mysql -y
+sudo systemctl enable apache2
 
-- **Real-time Monitoring:** 10-second refresh rate for sensor data (Temp, Humidity, Water Level, Distance).
-- **Edge AI:** On-device human detection to reduce cloud processing load.
-- **Instant Alerts:** Telegram Bot integration for immediate photo notifications when a human is detected.
-- **Data Visualization:** Interactive dual-axis line charts (Chart.js) to track water level trends.
-- **Automated Logging:** 10-point activity history displayed on the dashboard.
+Firewall
 
----
+Port: 80
 
-## 🛠️ Technical Stack
+Dashboard File
+sudo nano /var/www/html/index.php
 
-| Component | Technology |
-| :--- | :--- |
-| **Edge Hardware** | Raspberry Pi 4, HC-SR04 Ultrasonic, Analog Water Sensor, USB Camera |
-| **AI / Vision** | Python 3, OpenCV (HOG + Linear SVM) |
-| **Cloud Host** | Google Cloud Platform (Compute Engine - Debian/Ubuntu) |
-| **Web Server** | Apache2, PHP 8.x |
-| **Database** | MariaDB (MySQL) |
-| **Frontend** | Bootstrap 5, FontAwesome 6, Chart.js |
 
----
+📄 Dashboard Code:
+👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/index.php
 
-## 📦 Setup & Installation
+sudo chown www-data:www-data /var/www/html/index.php
+sudo chmod 644 /var/www/html/index.php
+sudo rm /var/www/html/index.html
 
-### 1. GCP VM (Cloud Server)
-- Install Apache, PHP, and MariaDB.
-- Configure the `flood_system` database using the provided schema.
-- Set directory permissions: `sudo chown -R www-data:www-data /var/www/html/uploads`.
 
-### 2. Raspberry Pi (Edge)
-- Enable Legacy Camera Support via `raspi-config`.
-- Create a Python virtual environment: `python3 -m venv venv`.
-- Install dependencies:
-  ```bash
-  pip install opencv-python numpy requests
-Configure capture.py with your GCP VM IP and Telegram Bot credentials.
+🌍 Access at:
 
-📱 Telegram Integration
-To receive alerts, create a bot via @BotFather and obtain your Chat ID via @userinfobot. The system will automatically push a photo and alert message whenever the AI detects a human in the monitoring zone.
+http://[GCP_EXTERNAL_IP]
 
-📊 Dashboard Preview
-The dashboard includes:
+📤 Image Upload Configuration
+sudo mkdir -p /var/www/html/uploads
+sudo chown www-data:www-data /var/www/html/uploads
+sudo chmod 755 /var/www/html/uploads
 
-Status Banner: Changes color (Green/Red) based on flood logic.
 
-Trend Chart: Visualizes water level vs. distance.
+📄 Upload Handler:
+👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/upload.php
 
-Live Feed: Displays the most recent annotated capture from the site.
+Update PHP limits:
+
+upload_max_filesize = 10M
+post_max_size = 10M
+
+sudo systemctl restart apache2
+
+📷 Raspberry Pi Camera Setup
+Install Dependencies
+sudo apt install -y python3-venv python3-pip \
+libglib2.0-0 libsm6 libxext6 libxrender1 \
+libgl1-mesa-glx libgtk-3-dev \
+libavcodec-dev libavformat-dev libswscale-dev
+
+Virtual Environment
+mkdir ~/flood_camera && cd ~/flood_camera
+python3 -m venv venv
+source venv/bin/activate
+pip install opencv-python requests
+
+
+📄 Camera Script:
+👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/RaspberryPi/capture.py
+
+python3 capture.py
+
+🛡️ Troubleshooting (UFW Firewall)
+sudo apt install ufw
+sudo ufw allow ssh
+sudo ufw allow 1883
+sudo ufw enable
+sudo ufw status
+
+✅ Features Summary
+
+📡 Real-time MQTT sensor data
+
+🗄️ Cloud-based MariaDB storage
+
+🌐 Web dashboard visualization
+
+📷 Image uploads from Raspberry Pi
+
+☁️ Fully hosted on GCP VM
+
+🚀 Future Enhancements
+
+Telegram / Email alerts
+
+Authentication for MQTT & Dashboard
+
+HTTPS (SSL)
+
+Historical charts & analytics
+
+AI-based flood detection
+
+👨‍💻 Author
+
+FloodShield Project
+GitHub: https://github.com/4arm/FloodSheild
