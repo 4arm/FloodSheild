@@ -1,0 +1,14 @@
+# Update system
+sudo apt update
+
+# Install Apache Web Server
+sudo apt install apache2 -y
+
+# Install MySQL Server
+sudo apt install mysql-server -y
+
+# Install PHP and the MySQL Extension (Crucial for your code)
+sudo apt install php libapache2-mod-php php-mysql -y
+
+# Restart Apache to apply changes
+sudo systemctl restart apache2
