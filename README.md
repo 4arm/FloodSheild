@@ -1,227 +1,125 @@
-🌊 FloodShield – IoT Flood Monitoring System
+## 🛠️ Section 1: ESP32 Setup (Arduino IDE)
+1. Required Libraries
+Open your Arduino IDE, go to Sketch > Include Library > Manage Libraries..., and install:
+### 📚 Required Libraries
 
-FloodShield is a full-stack IoT-based flood monitoring and alert system that integrates ESP32 sensors, MQTT messaging, a Google Cloud Platform (GCP) VM, MariaDB, a web dashboard, and a Raspberry Pi camera module for visual monitoring.
+| Library Name | Author | Purpose |
+| :--- | :--- | :--- |
+| **PubSubClient** | Nick O'Leary | Handles MQTT connection to GCP. |
+| **DHT sensor library** | Adafruit | Reads temperature and humidity from DHT11. |
+| **Adafruit Unified Sensor** | Adafruit | Required dependency for the DHT library. |
+| **ESP32Servo** | Kevin Harrington | PWM servo control specifically for ESP32. |
 
-This project is designed for real-time environmental sensing, cloud-based data storage, and web-based visualization, making it ideal for flood detection, monitoring, and research applications.
+2. Complete Refined Code
+Download or copy the full source code from the repository:
+📄 Source: esp32.ino (GitHub)
+3. Critical Setup Steps
+Board Selection: Tools > Board > ESP32 Arduino > NodeMCU-32S.
+Upload Speed: Set to 115200.
+GCP IP: Verify 34.124.166.142 is still your VM's External IP.
+MQTT Topic: Ensure the Python Bridge subscribes to flood/sensor.
 
-🧩 System Architecture Overview
-ESP32 Sensors
-   ↓ (MQTT)
-Mosquitto Broker (GCP VM)
-   ↓
-Python MQTT Bridge
-   ↓
-MariaDB Database
-   ↓
-Apache + PHP Dashboard
+## ☁️ Section 2: GCP VM Configuration
+1. Infrastructure Installation
+Run these commands to install the core services:
+<pre>
+sudo apt update && sudo apt upgrade -y
+sudo apt install mariadb-server apache2 php libapache2-mod-php php-mysql mosquitto mosquitto-clients -y
+sudo systemctl enable mosquitto apache2 mariadb
+</pre>
 
-
-📷 Raspberry Pi Camera uploads images to the server for visual flood confirmation.
-
-🛠️ Hardware Components
-
-ESP32 (NodeMCU-32S)
-
-DHT11 Temperature & Humidity Sensor
-
-Water Level Sensor (Analog)
-
-Ultrasonic Distance Sensor
-
-Servo Motor
-
-Raspberry Pi with Camera Module
-
-📦 Arduino Setup (ESP32)
-1️⃣ Required Libraries
-
-Install via Arduino IDE → Sketch > Include Library > Manage Libraries...
-
-Library Name	Author	Purpose
-PubSubClient	Nick O'Leary	MQTT communication with GCP VM
-DHT sensor library	Adafruit	Reads DHT11 temperature & humidity
-Adafruit Unified Sensor	Adafruit	Dependency for DHT
-ESP32Servo	Kevin Harrington	Servo PWM control for ESP32
-2️⃣ ESP32 Code
-
-MQTT topic: flood/sensor
-
-Database key fixed: water_analog
-
-📄 ESP32 Sketch:
-👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/Arduino/esp32.ino
-
-3️⃣ Critical Arduino Configuration
-
-Board: NodeMCU-32S
-
-Upload Speed: 115200
-
-GCP VM External IP: 34.124.166.142 (verify if VM restarted)
-
-MQTT Topic: flood/sensor
-
-☁️ GCP VM Setup
-Required Services
-
-MariaDB
-
-Mosquitto MQTT Broker
-
-Apache2 + PHP
-
-🗄️ MariaDB Database Setup
-Create User
+2. MariaDB Database Setup
+Log in to MariaDB: sudo mariadb and execute the following:
+SQL
+-- 1. User and Database Creation
+CREATE DATABASE IF NOT EXISTS flood_system;
 CREATE USER 'flood_user'@'localhost' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON flood_system.* TO 'flood_user'@'localhost';
 FLUSH PRIVILEGES;
 
-Create Database & Table
-CREATE DATABASE IF NOT EXISTS flood_system;
+-- 2. Schema Creation
 USE flood_system;
 
-CREATE TABLE sensor_data (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  temp FLOAT,
-  hum FLOAT,
-  water_analog INT,
-  distance_cm INT,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+CREATE TABLE `sensor_data` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `temp` float DEFAULT NULL,
+  `hum` float DEFAULT NULL,
+  `water_analog` int(11) DEFAULT NULL,
+  `distance_cm` int(11) DEFAULT NULL,
+  `timestamp` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-📡 Mosquitto MQTT Broker Configuration
-Install
-sudo apt update && sudo apt upgrade -y
-sudo apt install mosquitto mosquitto-clients -y
-sudo systemctl enable mosquitto
-
-Configuration
+3. Mosquitto MQTT Configuration
+Open the config file:
 sudo nano /etc/mosquitto/conf.d/default.conf
-
+Paste the following:
+Plaintext
 listener 1883 0.0.0.0
 allow_anonymous true
 
-sudo systemctl restart mosquitto
-
-Firewall Rule (GCP)
-
-Port: 1883
-
-Protocol: TCP
-
-Source: 0.0.0.0/0
-
-MQTT Test
-mosquitto_sub -h localhost -t "flood/sensor"
-mosquitto_pub -h localhost -t "flood/sensor" -m "Flood data test"
-
-🐍 Python MQTT → MariaDB Bridge
-Setup Virtual Environment
-sudo apt install python3-venv -y
+Restart service: sudo systemctl restart mosquitto
+4. Python Bridge (MQTT to Database)
+Run this inside a virtual environment to start syncing data:
+Bash
 mkdir ~/flood_bridge && cd ~/flood_bridge
 python3 -m venv venv
 source venv/bin/activate
 pip install paho-mqtt mysql-connector-python
-
-
-📄 Bridge Script:
-👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/mqtt_bridge.py
-
+# Download and run bridge
+wget https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/mqtt_bridge.py
 python3 mqtt_bridge.py
-deactivate
 
-🌐 Web Dashboard (Apache + PHP)
-Install Apache & PHP
-sudo apt install apache2 php libapache2-mod-php php-mysql -y
-sudo systemctl enable apache2
-
-Firewall
-
-Port: 80
-
-Dashboard File
-sudo nano /var/www/html/index.php
-
-
-📄 Dashboard Code:
-👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/index.php
-
-sudo chown www-data:www-data /var/www/html/index.php
-sudo chmod 644 /var/www/html/index.php
-sudo rm /var/www/html/index.html
-
-
-🌍 Access at:
-
-http://[GCP_EXTERNAL_IP]
-
-📤 Image Upload Configuration
+5. Web Dashboard & File Uploads
+Set up the Apache web root and the upload script:
+Bash
+# Create uploads folder with permissions
 sudo mkdir -p /var/www/html/uploads
 sudo chown www-data:www-data /var/www/html/uploads
 sudo chmod 755 /var/www/html/uploads
 
+# Download Dashboard and Upload Script
+sudo wget -O /var/www/html/index.php https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/index.php
+sudo wget -O /var/www/html/upload.php https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/upload.php
+sudo rm /var/www/html/index.html
 
-📄 Upload Handler:
-👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/GCP%20VM/upload.php
 
-Update PHP limits:
+📸 Section 3: Raspberry Pi (Camera & AI)
+1. System Dependencies
+Install necessary image processing libraries:
+Bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip libglib2.0-0 libsm6 libxext6 \
+libxrender1 libgl1-mesa-glx libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev
 
-upload_max_filesize = 10M
-post_max_size = 10M
-
-sudo systemctl restart apache2
-
-📷 Raspberry Pi Camera Setup
-Install Dependencies
-sudo apt install -y python3-venv python3-pip \
-libglib2.0-0 libsm6 libxext6 libxrender1 \
-libgl1-mesa-glx libgtk-3-dev \
-libavcodec-dev libavformat-dev libswscale-dev
-
-Virtual Environment
+2. Python Environment Setup
+Bash
 mkdir ~/flood_camera && cd ~/flood_camera
 python3 -m venv venv
 source venv/bin/activate
+pip install --upgrade pip
 pip install opencv-python requests
 
-
-📄 Camera Script:
-👉 https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/RaspberryPi/capture.py
-
+3. Execution
+Download your capture script and run:
+Bash
+wget https://raw.githubusercontent.com/4arm/FloodSheild/refs/heads/main/RaspberryPi/capture.py
+# Edit the script to add your VM IP and Telegram Token
+nano capture.py 
 python3 capture.py
 
-🛡️ Troubleshooting (UFW Firewall)
+
+🛡️ Troubleshooting & Security
+GCP Firewall Settings
+Ensure these ports are open in the GCP Console > VPC Network > Firewall:
+TCP 1883: MQTT
+TCP 80: HTTP Dashboard
+TCP 22: SSH Access
+Local Firewall (UFW)
+If you encounter connection blocks on the VM:
+Bash
 sudo apt install ufw
 sudo ufw allow ssh
 sudo ufw allow 1883
+sudo ufw allow 80
 sudo ufw enable
-sudo ufw status
-
-✅ Features Summary
-
-📡 Real-time MQTT sensor data
-
-🗄️ Cloud-based MariaDB storage
-
-🌐 Web dashboard visualization
-
-📷 Image uploads from Raspberry Pi
-
-☁️ Fully hosted on GCP VM
-
-🚀 Future Enhancements
-
-Telegram / Email alerts
-
-Authentication for MQTT & Dashboard
-
-HTTPS (SSL)
-
-Historical charts & analytics
-
-AI-based flood detection
-
-👨‍💻 Author
-
-FloodShield Project
-GitHub: https://github.com/4arm/FloodSheild
